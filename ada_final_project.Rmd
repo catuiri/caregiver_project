@@ -1,0 +1,223 @@
+---
+title: "ADA final project"
+author: "Clifford Atuiri"
+date: "2022-12-08"
+output: github_document
+---
+
+```{r}
+##loading package##
+pacman::p_load(haven)
+```
+
+```{r}
+## importing dataset
+caregiver<-read_dta("hints5_combined1234.dta")
+```
+
+```{r}
+#selecting variables of interest 
+colnames(caregiver)
+pacman::p_load(tidyverse)
+caregiver_small<- caregiver%>%
+  select(2,143:162,191:194,291,335,336,414:420,425)
+colnames(caregiver_small)
+```
+```{r}
+## save variables of interest as new dataset
+save(caregiver_small, file = "caregiver_small.Rdata")
+```
+
+```{r}
+## re-coding and categorizing dependent variable (phq4)
+
+## converting phq4 to a categorical variable
+# installing packages
+pacman::p_load(dplyr, naniar, tidyverse)
+
+summary(caregiver_small$phq4)
+table(caregiver_small$phq4)
+
+# recode missing phq4 values to NA
+caregiver_small_clean<- caregiver_small %>%
+  replace_with_na(replace = list(phq4 = c(-9, -7, -5)))
+# delete those with missing phq4
+
+
+# Categorize phq4 into binary varibale (normal and psychological distress)
+caregiver_small_clean<-caregiver_small_clean%>%
+  mutate(phq4_cat= if_else(phq4<3, 0,
+                           if_else(phq4>2,1,NULL)))
+table(caregiver_small_clean$phq4, useNA = "always")
+table(caregiver_small_clean$phq4_cat, useNA = "always")
+class(caregiver_small_clean$phq4_cat)
+caregiver_small_clean$phq4_cat<- as.factor(caregiver_small_clean$phq4_cat)
+
+## Convert to factor and label categories of phq4_cat
+caregiver_small_clean$phq4_cat <- factor(caregiver_small_clean$phq4_cat,
+levels = c(0,1),
+labels = c("Normal", "Psychological distress"))
+```
+```{r}
+#### Recoding independent variables 
+
+### Medical caregiving (caregiving_no)
+##recoding missing values to NA
+table(caregiver_small_clean$caregiving_no)
+caregiver_small_clean<- caregiver_small_clean %>%
+  replace_with_na(replace = list(caregiving_no = c(-9, -7)))
+
+class(caregiver_small_clean$caregiving_no)
+
+## converting variable to factor and labelling values
+caregiver_small_clean$caregiving_no <- factor(caregiver_small_clean$caregiving_no,
+levels = c(1,2),
+labels = c("Not a caregiver", "Caregiver"))
+
+##Renaming variable to Cargiving
+colnames(caregiver_small_clean)
+names(caregiver_small_clean)[7]<-c("Caregiving")
+table(caregiver_small_clean$Caregiving)
+
+### Age
+table(caregiver_small_clean$selfage)
+#recode missing values as NA
+caregiver_small_clean<- caregiver_small_clean %>%
+  replace_with_na(replace = list(selfage = c(-9, -7, -4)))
+#creating age group categories
+caregiver_small_clean <- caregiver_small_clean%>%
+  mutate(
+    age_group = dplyr::case_when(
+      selfage >= 18 & selfage <=34 ~ 0,
+      selfage >= 35 & selfage <= 49 ~ 1,
+      selfage >= 50 & selfage <= 64 ~ 2,
+      selfage >= 65 & selfage <= 74 ~ 3,
+      selfage >= 75 ~ 4
+    ),
+    age_group = factor(age_group, 0:4, c("18-34", "35-49", "50-64", "65-74","75+" ))) #convert to factor 
+
+table(caregiver_small_clean$age_group)
+class(caregiver_small_clean$age_group)
+summary(caregiver_small_clean$age_group)
+by(caregiver_small_clean$selfage, caregiver_small_clean$age_group, summary)
+
+### Gender
+# converting missing values to NA
+table(caregiver_small_clean$selfgender)
+caregiver_small_clean<- caregiver_small_clean %>%
+  replace_with_na(replace = list(selfgender = c(-9, -7, -5)))
+#convert to factor and label
+caregiver_small_clean$selfgender<- factor(caregiver_small_clean$selfgender,
+levels = c(1,2),
+labels = c("Male", "Female"))
+
+## Educational status 
+#converting missing values to NA 
+table(caregiver_small_clean$educa)
+caregiver_small_clean<- caregiver_small_clean %>%
+  replace_with_na(replace = list(educa = c(-9, -7)))
+#convert to factor and label 
+caregiver_small_clean$educa<- factor(caregiver_small_clean$educa,
+levels = c(1,2,3,4),
+labels = c("Less than High School", "High School Graduate", "Some College","College Graduate or More"))
+
+## Race/ethnicity
+#converting missing values to NA 
+table(caregiver_small_clean$raceethn5)
+caregiver_small_clean<- caregiver_small_clean %>%
+  replace_with_na(replace = list(raceethn5 = c(-9, -7)))
+#convert to factor and label 
+caregiver_small_clean$raceethn5<- factor(caregiver_small_clean$raceethn5,
+levels = c(1,2,3,4,5),
+labels = c("NH white", "NH black/African American", "Hispanic","NH Asian", "Other"))
+
+### Household income 
+#converting missing values to NA 
+table(caregiver_small_clean$hhinc)
+caregiver_small_clean<- caregiver_small_clean %>%
+  replace_with_na(replace = list(hhinc = c(-9, -7)))
+#convert to factor and label 
+caregiver_small_clean$hhinc<- factor(caregiver_small_clean$hhinc,
+levels = c(1,2,3,4,5),
+labels = c("Less than $20,000", "$20,000 to < $35,000", "$35,000 to < $50,000","$50,000 to < $75,000", "$75,000 or More"))
+
+```
+
+```{r}
+## descriptives table 
+library(table1)
+tbl1<-table1(~ age_group + selfgender + raceethn5 + educa + hhinc | Caregiving, data=caregiver_small_clean, overall="Total")
+
+#saving table1 to doc
+pacman::p_load(flextable,magrittr)
+t1flex(tbl1) %>% 
+  save_as_docx(path="caregiving_tab1.docx")
+```
+
+
+```{r}
+##logistic regression analysis 
+#loading packages
+pacman::p_load(odds.n.ends, blorr, lmtest, car,  broom, tidyverse, jtools, readr) 
+
+# Un-adjusted model
+table(caregiver_small_clean$Caregiving)
+model1<- glm(phq4_cat ~ Caregiving, data=caregiver_small_clean, family="binomial")
+summary(model1) # get log results
+
+odds.n.ends(model1) # get OR results
+
+#adjusted model without interaction term 
+model2<- glm(phq4_cat ~ Caregiving+age_group+selfgender+raceethn5+educa+hhinc, data=caregiver_small_clean, family="binomial")
+summary(model2) # get log results
+
+odds.n.ends(model2) # get OR results
+
+### Assumptions of logistic regression 
+
+## Linearity
+# There are no continuous variables in the model so this assumption doesn't apply
+
+## Multicollinearity
+vif(model2) #there was no multicollinearity
+
+## Influential observations
+#plot of cooks distance 
+plot(model2, which = 4, id.n = 3, col="red")
+
+# cooks distance calculations 
+model2.data <- augment(model2) %>%  
+  mutate(index = 1:n()) 
+
+head(model2.data)
+
+# Exclude cases with cooks distance greater than cutoff
+cuttoff <- mean(model2.data$.cooksd)*3 # defines cutoff variable
+
+Caregiver_out <- model2.data %>% # excludes observations
+  filter(.cooksd<cuttoff)
+
+nrow(Caregiver_out)/nrow(caregiver_small_clean) # check percent kept
+
+### New logistic regression model with observations excluded
+model2_new<- glm(phq4_cat ~ Caregiving+age_group+selfgender+raceethn5+educa+hhinc, data=Caregiver_out, family="binomial")
+summary(model2_new) # get log results
+
+odds.n.ends(model2_new) # get OR results (and more!) #make dataframe of output
+
+```
+```{r}
+## effect modification 
+# adjusted model plus interaction term Caregiving*selfgender
+model3<- glm(phq4_cat ~ Caregiving+age_group+selfgender+raceethn5+educa+hhinc+Caregiving*selfgender, data=Caregiver_out, family="binomial")
+summary(model3) # get log results
+
+odds.n.ends(model3) # get OR results (and more!) #make dataframe of output
+
+# Test the hypothesis with the lrtest
+lrtest(model2_new, model3)
+
+## the interaction effect of sex was not statistically significant and hence no stratified analysis was done.
+
+```
+
